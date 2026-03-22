@@ -83,6 +83,7 @@
     <p id="status">Ready to chat!</p>
     <div id="response">Hold the button and talk...</div>
     <button id="talk-btn">Hold to Talk</button>
+    <button id="test-tts-btn" style="margin-top:12px;padding:8px 16px;background:#e0e0e0;border:none;border-radius:8px;cursor:pointer;">Test Voice</button>
     <p id="error"></p>
   </div>
 
@@ -236,6 +237,11 @@
       errorEl.style.display = 'block';
       status.textContent = 'Oops!';
     }
+    
+    // Test TTS button
+    document.getElementById('test-tts-btn').addEventListener('click', () => {
+      speak('Hello! I am Bubbles. Can you hear me?');
+    });
   </script>
 </body>
 </html>
