@@ -3,6 +3,7 @@ Bubbles - Simple push-to-talk chatbot for kids with memory
 Receives audio → transcribes → LLM response → returns text + audio
 """
 import base64
+import json
 import re
 import tempfile
 import uuid
@@ -107,7 +108,7 @@ async def generate_tts(text: str) -> str:
                     "stream": False,
                     "output_format": "mp3",
                     "voice_setting": {
-                        "voice_id": "English_expressive_narrator",
+                        "voice_id": "male-qn-qingse",
                         "speed": 1.0,
                         "vol": 1.0,
                         "pitch": 0,
@@ -119,11 +120,14 @@ async def generate_tts(text: str) -> str:
                     },
                 },
             ) as resp:
+                result_text = await resp.text()
                 if resp.status != 200:
-                    logger.error(f"TTS error: {await resp.text()}")
+                    logger.error(f"TTS error status {resp.status}: {result_text}")
                     return ""
                 
-                result = await resp.json()
+                result = json.loads(result_text)
+                logger.info(f"TTS response: {result}")
+                
                 # Response is JSON with hex-encoded audio in data.audio
                 audio_hex = result.get("data", {}).get("audio", "")
                 if not audio_hex:

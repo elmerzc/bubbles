@@ -48,7 +48,8 @@ def init_db():
             trait TEXT,
             value REAL DEFAULT 0.5,  -- 0.0 to 1.0 scale
             count INTEGER DEFAULT 1,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(session_id, trait)
         )
     """)
     conn.commit()
@@ -103,17 +104,35 @@ def update_personality(session_id: str, trait: str, adjustment: float):
     """Update a personality trait (0.0 to 1.0)."""
     conn = get_db()
     c = conn.cursor()
-    c.execute("""
-        INSERT INTO personality (session_id, trait, value, count)
-        VALUES (?, ?, ?, 1)
-        ON CONFLICT(session_id, trait) DO UPDATE SET 
-            value = CASE 
-                WHEN count + 1 > 1 THEN (personality.value * count + ?) / (count + 1)
-                ELSE ?
-            END,
-            count = count + 1,
-            updated_at = CURRENT_TIMESTAMP
-    """, (session_id, trait, adjustment, adjustment, adjustment))
+    try:
+        c.execute("""
+            INSERT INTO personality (session_id, trait, value, count)
+            VALUES (?, ?, ?, 1)
+            ON CONFLICT(session_id, trait) DO UPDATE SET 
+                value = CASE 
+                    WHEN personality.count + 1 > 1 THEN (personality.value * personality.count + ?) / (personality.count + 1)
+                    ELSE ?
+                END,
+                count = personality.count + 1,
+                updated_at = CURRENT_TIMESTAMP
+        """, (session_id, trait, adjustment, adjustment, adjustment))
+    except sqlite3.OperationalError:
+        # Table doesn't have unique constraint yet, do a simple update or insert
+        c.execute("SELECT count FROM personality WHERE session_id = ? AND trait = ?", (session_id, trait))
+        row = c.fetchone()
+        if row:
+            c.execute("""
+                UPDATE personality SET 
+                    value = (value * count + ?) / (count + 1),
+                    count = count + 1,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE session_id = ? AND trait = ?
+            """, (adjustment, session_id, trait))
+        else:
+            c.execute("""
+                INSERT INTO personality (session_id, trait, value, count)
+                VALUES (?, ?, ?, 1)
+            """, (session_id, trait, adjustment))
     conn.commit()
     conn.close()
 
