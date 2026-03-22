@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 DEEPGRAM_API_KEY = os.getenv("DEEPGRAM_API_KEY")
 MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY")
 MINIMAX_GROUP_ID = os.getenv("MINIMAX_GROUP_ID")

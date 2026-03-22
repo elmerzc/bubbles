@@ -1,4 +1,4 @@
-pipecat-ai[daily,deepgram,anthropic,silero]
+pipecat-ai[daily,deepgram,openai,silero]
 minimax
 aiohttp
 fastapi

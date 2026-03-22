@@ -14,7 +14,7 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
     LLMUserAggregatorParams,
 )
-from pipecat.services.anthropic.llm import AnthropicLLMService
+from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.minimax.tts import MiniMaxHttpTTSService
 from pipecat.transports.daily.transport import DailyParams, DailyTransport
 
@@ -44,10 +44,11 @@ async def run_bot(room_url: str, token: str):
             ),
         )
 
-        llm = AnthropicLLMService(
-            api_key=config.ANTHROPIC_API_KEY,
-            settings=AnthropicLLMService.Settings(
-                model="claude-sonnet-4-5-20250929",
+        llm = OpenAILLMService(
+            api_key=config.MINIMAX_API_KEY,
+            base_url="https://api.minimax.io/v1",
+            settings=OpenAILLMService.Settings(
+                model="MiniMax-M2.7",
                 system_instruction=BUBBLES_SYSTEM_PROMPT,
                 max_tokens=200,
                 temperature=0.8,
