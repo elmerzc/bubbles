@@ -83,7 +83,9 @@ async def chat(audio_file: UploadFile = File(...)):
                     logger.error(f"MiniMax error: {error}")
                     return {"error": "Oops, something went wrong on my end!"}
                 result = await resp.json()
-                reply = result["choices"][0]["message"]["content"]
+                logger.info(f"MiniMax response: {result}")
+                # MiniMax Anthropic-compatible format: content is in "content" field
+                reply = result.get("content", [{"text": "Oops, something went wrong!"}])[0].get("text", "Oops!")
         
         logger.info(f"Bubbles: {reply}")
         return {"text": reply}
