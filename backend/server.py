@@ -106,7 +106,7 @@ async def generate_tts(text: str) -> str:
                     "model": "speech-02-hd",
                     "text": text,
                     "stream": False,
-                    "output_format": "mp3",
+                    "output_format": "hex",
                     "voice_setting": {
                         "voice_id": "male-qn-qingse",
                         "speed": 1.0,
