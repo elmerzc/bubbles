@@ -1,4 +1,5 @@
 pipecat-ai[daily,deepgram,openai,silero]
+deepgram>=1.0.0
 minimax
 aiohttp
 fastapi

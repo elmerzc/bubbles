@@ -7,6 +7,8 @@ let face = null;
 let audioAnalyser = null;
 let audioDataArray = null;
 let isListening = false;
+let mediaRecorder = null;
+let audioChunks = [];
 
 // ---- PIN ----
 
@@ -73,7 +75,7 @@ async function initChat() {
 
     callObject.on("joined-meeting", () => {
       caption.textContent = "Bubbles is waking up...";
-      callObject.setLocalAudio(false);
+      callObject.setLocalAudio(false);  // Mute mic from daily pipeline
       talkBtn.disabled = false;
     });
 
@@ -108,25 +110,74 @@ async function initChat() {
 
     await callObject.join({ url: data.room_url, token: data.token });
 
-    // Push-to-talk
-    const startListening = () => {
-      if (talkBtn.disabled) return;
+    // Get local microphone stream for MediaRecorder
+    let localStream = null;
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      logger.error("Mic access denied:", err);
+    }
+
+    // Push-to-talk with MediaRecorder — sends ONE audio blob on release
+    const startListening = async () => {
+      if (talkBtn.disabled || !localStream) return;
       isListening = true;
-      callObject.setLocalAudio(true);
+      audioChunks = [];
+
+      // Use opus codec for better compression
+      const mimeType = MediaRecorder.isTypeSupported("audio/opus;rate=48000")
+        ? "audio/opus;rate=48000"
+        : "audio/webm";
+
+      mediaRecorder = new MediaRecorder(localStream, { mimeType });
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunks.push(e.data);
+      };
+      mediaRecorder.start();
+
       talkBtn.classList.add("listening");
       talkBtnText.textContent = "Listening...";
       face.setState("listening");
       caption.textContent = "I'm listening...";
     };
 
-    const stopListening = () => {
-      if (!isListening) return;
+    const stopListening = async () => {
+      if (!isListening || !mediaRecorder) return;
       isListening = false;
-      callObject.setLocalAudio(false);
+
+      mediaRecorder.stop();
       talkBtn.classList.remove("listening");
       talkBtnText.textContent = "Hold to Talk";
       face.setState("thinking");
       caption.textContent = "Hmm, let me think...";
+
+      // Wait for all chunks, then send as ONE request
+      const audioBlob = await new Promise((resolve) => {
+        mediaRecorder.onstop = () => {
+          const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+          resolve(blob);
+        };
+      });
+
+      if (audioBlob.size < 1000) return; // Ignore accidental clicks
+
+      // Send to backend for transcription → LLM
+      const formData = new FormData();
+      formData.append("audio_file", audioBlob, "recording.webm");
+
+      try {
+        const res = await fetch(`${API_BASE}/api/chat`, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await res.json();
+        caption.textContent = data.text || "Something went wrong!";
+        face.setState("talking");
+      } catch (err) {
+        logger.error("Chat error:", err);
+        caption.textContent = "Oops! Couldn't reach Bubbles. Try again.";
+        face.setState("idle");
+      }
     };
 
     // Mouse
