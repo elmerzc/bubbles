@@ -110,17 +110,12 @@
     init();
 
     // Use Web Speech API for TTS (free, no API needed)
-    let voices = [];
+    let voices = speechSynthesis.getVoices(); // Load immediately
     
-    // Chrome requires user interaction before speaking, so we load voices on page load
-    function loadVoices() {
+    // Chrome may need this event to reload voices
+    speechSynthesis.onvoiceschanged = () => {
       voices = speechSynthesis.getVoices();
-    }
-    
-    if (speechSynthesis.getVoices().length > 0) {
-      loadVoices();
-    }
-    speechSynthesis.onvoiceschanged = loadVoices;
+    };
     
     function speak(text) {
       if (!text) return;
