@@ -24,8 +24,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize Deepgram
-deepgram = DeepgramClient(config.DEEPGRAM_API_KEY)
+# Initialize Deepgram (reads DEEPGRAM_API_KEY from env)
+deepgram = DeepgramClient()
 
 BUBBLES_PROMPT = """You are Bubbles, a fun talking buddy for kids under 10. Be adaptive — silly with silly kids, gentle with quiet ones. Use simple words, short sentences, and kid-friendly humor.
 
