@@ -94,6 +94,7 @@ async function initChat() {
     callObject.on("app-message", (event) => {
       if (event.data && event.data.text) {
         caption.textContent = event.data.text;
+        face.setState("talking");
       }
     });
 

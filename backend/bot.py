@@ -5,7 +5,7 @@ import aiohttp
 from loguru import logger
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.frames.frames import LLMRunFrame
+from pipecat.frames.frames import LLMRunFrame, TextFrame, LLMFullResponseEndFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
@@ -14,8 +14,8 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
     LLMUserAggregatorParams,
 )
+from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.openai.llm import OpenAILLMService
-from pipecat.services.minimax.tts import MiniMaxHttpTTSService
 from pipecat.transports.daily.transport import DailyParams, DailyTransport
 
 import config
@@ -23,6 +23,27 @@ from prompts import BUBBLES_GREETING, BUBBLES_SYSTEM_PROMPT
 
 logger.remove(0)
 logger.add(sys.stderr, level="DEBUG")
+
+
+class TextToTransport(FrameProcessor):
+    """Captures LLM text and sends it to the client as app messages."""
+
+    def __init__(self, transport, **kwargs):
+        super().__init__(**kwargs)
+        self._transport = transport
+        self._buffer = ""
+
+    async def process_frame(self, frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+
+        if isinstance(frame, TextFrame):
+            self._buffer += frame.text
+            # Send streaming text to client
+            await self._transport.send_app_message({"text": self._buffer})
+        elif isinstance(frame, LLMFullResponseEndFrame):
+            self._buffer = ""
+
+        await self.push_frame(frame, direction)
 
 
 async def run_bot(room_url: str, token: str):
@@ -55,17 +76,7 @@ async def run_bot(room_url: str, token: str):
             ),
         )
 
-        tts = MiniMaxHttpTTSService(
-            api_key=config.MINIMAX_API_KEY,
-            group_id=config.MINIMAX_GROUP_ID,
-            aiohttp_session=session,
-            settings=MiniMaxHttpTTSService.Settings(
-                voice="Calm_Woman",
-                model="speech-02-hd",
-                speed=1.05,
-                emotion="happy",
-            ),
-        )
+        text_sender = TextToTransport(transport)
 
         context = LLMContext()
         user_aggregator, assistant_aggregator = LLMContextAggregatorPair(
@@ -80,7 +91,7 @@ async def run_bot(room_url: str, token: str):
                 transport.input(),
                 user_aggregator,
                 llm,
-                tts,
+                text_sender,
                 transport.output(),
                 assistant_aggregator,
             ]
