@@ -1,19 +1,22 @@
 """
-Bubbles - Simple push-to-talk chatbot for kids
-Receives audio → transcribes → LLM response → returns text (frontend uses Web Speech API for TTS)
+Bubbles - Simple push-to-talk chatbot for kids with memory
+Receives audio → transcribes → LLM response → returns text
 """
 import asyncio
+import re
 import tempfile
+import uuid
 from pathlib import Path
 
 import aiohttp
 from deepgram import DeepgramClient
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Cookie
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 import config
+import memory
 
 app = FastAPI()
 
@@ -35,12 +38,64 @@ RULES: Never discuss violence, adult topics, or scary things. Never use bad lang
 
 Keep responses to 1-3 sentences. Ask follow-up questions. Be encouraging and fun."""
 
+# Facts to extract from conversation
+FACT_PATTERNS = [
+    (r"my name is (\w+)", "name"),
+    (r"i'm (\w+)", "nickname"),
+    (r"i am (\w+)", "nickname"),
+    (r"my favorite color is (\w+)", "favorite_color"),
+    (r"i like (\w+)", "likes"),
+    (r"my dog is (named )?(\w+)", "pet_name"),
+    (r"i'm (\d+) years? old", "age"),
+    (r"i am (\d+) years? old", "age"),
+]
+
+
+def extract_facts(session_id: str, text: str):
+    """Extract facts from child speech and store them."""
+    text_lower = text.lower()
+    for pattern, key in FACT_PATTERNS:
+        match = re.search(pattern, text_lower)
+        if match:
+            value = match.group(1) if match.groups() else match.group(0)
+            memory.set_fact(session_id, key, value)
+            logger.info(f"Extracted fact: {key} = {value}")
+
+
+def update_personality_from_response(session_id: str, child_speech: str, bubbles_reply: str):
+    """Update personality traits based on interaction patterns."""
+    child_lower = child_speech.lower()
+    
+    # Detect silliness level
+    silly_words = ["lol", "haha", "funny", "silly", "joke", "laugh", "lmao", "hahaha"]
+    if any(word in child_lower for word in silly_words):
+        memory.update_personality(session_id, "silly", 0.1)
+    
+    # Detect quiet/shy behavior
+    quiet_words = ["okay", "ok", "yeah", "yes", "sure", "i guess"]
+    short_response = len(child_speech.split()) < 5
+    if any(word in child_lower for word in quiet_words) and short_response:
+        memory.update_personality(session_id, "quiet", 0.1)
+    
+    # Detect enthusiasm
+    excited_words = ["wow", "awesome", "cool", "amazing", "really", "wow!"]
+    if any(word in child_lower for word in excited_words):
+        memory.update_personality(session_id, "enthusiastic", 0.1)
+
 
 @app.post("/api/chat")
-async def chat(audio_file: UploadFile = File(...)):
+async def chat(
+    audio_file: UploadFile = File(...),
+    session_id: str = Cookie(default=None)
+):
     """Receive audio blob → transcribe → LLM → return text response."""
     tmp_path = None
     try:
+        # Get or create session ID
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            logger.info(f"New session: {session_id}")
+
         # Save uploaded audio
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
             tmp.write(await audio_file.read())
@@ -59,8 +114,26 @@ async def chat(audio_file: UploadFile = File(...)):
         logger.info(f"Heard: {transcript}")
 
         if not transcript.strip():
-            return {"text": "Hmm, I didn't catch that! Can you say it again?"}
+            return {"text": "Hmm, I didn't catch that! Can you say it again?", "session_id": session_id}
         
+        # Extract and store facts from child's speech
+        extract_facts(session_id, transcript)
+        
+        # Build context from memory
+        context_prompt = memory.build_context_prompt(session_id)
+        facts_prompt = memory.build_facts_prompt(session_id)
+        personality_prompt = memory.build_personality_prompt(session_id)
+        
+        # Combine prompts
+        full_prompt = BUBBLES_PROMPT + "\n"
+        if facts_prompt:
+            full_prompt += facts_prompt + "\n"
+        if personality_prompt:
+            full_prompt += personality_prompt + "\n"
+        if context_prompt:
+            full_prompt += context_prompt + "\n"
+        full_prompt += f"\nChild: {transcript}"
+
         # Get LLM response via MiniMax Anthropic-compatible API
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -73,7 +146,7 @@ async def chat(audio_file: UploadFile = File(...)):
                 json={
                     "model": "MiniMax-M2.5",
                     "messages": [
-                        {"role": "user", "content": f"{BUBBLES_PROMPT}\n\nChild: {transcript}"}
+                        {"role": "user", "content": full_prompt}
                     ],
                     "max_tokens": 500,
                 },
@@ -81,19 +154,26 @@ async def chat(audio_file: UploadFile = File(...)):
                 if resp.status != 200:
                     error = await resp.text()
                     logger.error(f"MiniMax error: {error}")
-                    return {"error": "Oops, something went wrong on my end!"}
+                    return {"error": "Oops, something went wrong on my end!", "session_id": session_id}
                 result = await resp.json()
-                logger.info(f"MiniMax response: {result}")
-                # MiniMax Anthropic-compatible: content has items with type "text" or "thinking"
+                
+                # Parse response
                 content = result.get("content", [])
                 reply = "Oops, I didn't catch that!"
                 for item in content:
                     if item.get("type") == "text":
                         reply = item.get("text", reply)
                         break
+
+        # Store conversation in memory
+        memory.add_message(session_id, "child", transcript)
+        memory.add_message(session_id, "bubbles", reply)
         
+        # Update personality based on interaction
+        update_personality_from_response(session_id, transcript, reply)
+
         logger.info(f"Bubbles: {reply}")
-        return {"text": reply}
+        return {"text": reply, "session_id": session_id}
 
     except Exception as e:
         logger.exception(f"Chat error: {e}")

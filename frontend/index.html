@@ -179,8 +179,25 @@
       formData.append('audio_file', blob, 'recording.webm');
 
       try {
-        const res = await fetch(`${API_BASE}/api/chat`, { method: 'POST', body: formData });
+        const res = await fetch(`${API_BASE}/api/chat`, { 
+          method: 'POST', 
+          body: formData,
+          credentials: 'include'  // Send cookies (session_id)
+        });
         const data = await res.json();
+        
+        if (data.error) {
+          showError(data.error);
+          return;
+        }
+        
+        response.textContent = data.text;
+        status.textContent = 'Tap to chat again!';
+        
+        // Update session_id cookie if we got a new one
+        if (data.session_id) {
+          document.cookie = `session_id=${data.session_id}; path=/; max-age=31536000`;
+        }
         
         if (data.error) {
           showError(data.error);
