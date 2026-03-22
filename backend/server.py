@@ -7,7 +7,8 @@ import tempfile
 from pathlib import Path
 
 import aiohttp
-from deepgram import Deepgram
+from deepgram import DeepgramClient
+from deepgram.models import PrerecordedOptions
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -25,7 +26,7 @@ app.add_middleware(
 )
 
 # Initialize Deepgram
-deepgram = Deepgram(api_key=config.DEEPGRAM_API_KEY)
+deepgram = DeepgramClient(config.DEEPGRAM_API_KEY)
 
 BUBBLES_PROMPT = """You are Bubbles, a fun talking buddy for kids under 10. Be adaptive — silly with silly kids, gentle with quiet ones. Use simple words, short sentences, and kid-friendly humor.
 
@@ -46,14 +47,16 @@ async def chat(audio_file: UploadFile = File(...)):
             tmp.write(await audio_file.read())
             tmp_path = tmp.name
 
-        # Transcribe with Deepgram
+        # Transcribe with Deepgram v3
+        options = PrerecordedOptions(
+            model="nova-2",
+            punctuate=True,
+            profanity_filter=True,
+        )
         with open(tmp_path, "rb") as f:
-            dg_response = await deepgram.transcription.prerecorded(
-                {"buffer": f, "mimetype": audio_file.content_type or "audio/webm"},
-                {"punctuate": True, "profanity_filter": True}
-            )
+            dg_response = deepgram.listen.prerecorded.v("1").transcribe_file(f, options)
         
-        transcript = dg_response["results"]["channels"][0]["alternatives"][0]["transcript"]
+        transcript = dg_response.results.channels[0].alternatives[0].transcript
         logger.info(f"Heard: {transcript}")
 
         if not transcript.strip():
