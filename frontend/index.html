@@ -109,18 +109,32 @@
     init();
 
     // Use Web Speech API for TTS (free, no API needed)
+    let voicesLoaded = false;
+    
+    speechSynthesis.onvoiceschanged = () => {
+      voicesLoaded = true;
+    };
+    
     function speak(text) {
       if (!text) return;
       const utt = new SpeechSynthesisUtterance(text);
       utt.rate = 1.1;
       utt.pitch = 1.2;
-      // Try to find a friendly voice
-      const voices = speechSynthesis.getVoices();
-      const kidVoice = voices.find(v => v.name.includes('Samantha') || v.name.includes('Google US English'))
-                    || voices.find(v => v.lang.startsWith('en')) 
-                    || voices[0];
-      if (kidVoice) utt.voice = kidVoice;
-      speechSynthesis.speak(utt);
+      // Wait for voices to load if needed
+      const trySpeak = () => {
+        const voices = speechSynthesis.getVoices();
+        const kidVoice = voices.find(v => v.name.includes('Samantha') || v.name.includes('Google US English'))
+                      || voices.find(v => v.lang.startsWith('en')) 
+                      || voices[0];
+        if (kidVoice) utt.voice = kidVoice;
+        speechSynthesis.speak(utt);
+      };
+      if (voicesLoaded || speechSynthesis.getVoices().length > 0) {
+        trySpeak();
+      } else {
+        // Wait a bit for voices to load
+        setTimeout(trySpeak, 100);
+      }
     }
 
     talkBtn.addEventListener('mousedown', startListening);
@@ -217,9 +231,6 @@
       errorEl.style.display = 'block';
       status.textContent = 'Oops!';
     }
-
-    // Preload voices
-    speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
   </script>
 </body>
 </html>
