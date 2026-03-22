@@ -125,6 +125,11 @@
     function speak(text) {
       if (!text) return;
       try {
+        // Remove emojis and special chars that can break TTS
+        text = text.replace(/[\u{1F600}-\u{1F6FF}]/gu, '').replace(/[*#🎉🐰🤖🦕]/g, '');
+        text = text.trim();
+        if (!text) return;
+        
         speechSynthesis.cancel();
         
         const utt = new SpeechSynthesisUtterance(text);
@@ -226,6 +231,7 @@
         
         response.textContent = data.text;
         status.textContent = 'Tap to chat again!';
+        console.log('Got response:', data.text);
         speak(data.text);
       } catch (e) {
         showError('Could not reach server. Try again!');
