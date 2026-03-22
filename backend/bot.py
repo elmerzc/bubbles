@@ -29,6 +29,8 @@ class ThinkingFilter(FrameProcessor):
         self._in_think = False
 
     async def process_frame(self, frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+
         if isinstance(frame, TextFrame):
             text = frame.text
             # Strip complete <think>...</think> blocks
@@ -42,7 +44,7 @@ class ThinkingFilter(FrameProcessor):
                     text = text[text.index("</think>") + len("</think>"):]
                     self._in_think = False
                 else:
-                    text = ""
+                    return
             if text.strip():
                 await self.push_frame(TextFrame(text=text), direction)
         else:
