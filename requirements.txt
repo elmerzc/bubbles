@@ -3,4 +3,4 @@ uvicorn[standard]
 python-dotenv
 loguru
 aiohttp
-deepgram>=1.0.0
+deepgram-sdk>=3.0.0
