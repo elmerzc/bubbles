@@ -1,7 +1,8 @@
 """
 Bubbles - Simple push-to-talk chatbot for kids with memory
-Receives audio → transcribes → LLM response → returns text
+Receives audio → transcribes → LLM response → returns text + audio
 """
+import base64
 import asyncio
 import re
 import tempfile
@@ -173,7 +174,70 @@ async def chat(
         update_personality_from_response(session_id, transcript, reply)
 
         logger.info(f"Bubbles: {reply}")
-        return {"text": reply, "session_id": session_id}
+        
+        # Generate TTS audio using MiniMax
+        audio_b64 = await generate_tts(reply)
+        
+        return {
+            "text": reply, 
+            "session_id": session_id,
+            "audio": audio_b64
+        }
+
+    except Exception as e:
+        logger.exception(f"Chat error: {e}")
+        return {"error": "Oops, something went wrong! Try again."}
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
+
+
+async def generate_tts(text: str) -> str:
+    """Generate TTS audio using MiniMax and return as base64 MP3."""
+    # Strip emojis and special chars that don't speak well
+    import re
+    text = re.sub(r'[\U0001F300-\U0001F9FF]', '', text)  # Remove emojis
+    text = text.replace('*', '').replace('#', '')
+    text = text.strip()
+    
+    if not text:
+        return ""
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://api.minimax.io/v1/t2a_v2",
+                headers={
+                    "Authorization": f"Bearer {config.MINIMAX_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "speech-02-hd",
+                    "text": text,
+                    "stream": False,
+                    "output_format": "mp3",
+                    "voice_setting": {
+                        "voice_id": "male-qn-qingse",
+                        "speed": 1.0,
+                        "vol": 1.0,
+                        "pitch": 0,
+                    },
+                    "audio_setting": {
+                        "sample_rate": 32000,
+                        "format": "mp3",
+                        "channel": 1,
+                    },
+                },
+            ) as resp:
+                if resp.status != 200:
+                    logger.error(f"TTS error: {await resp.text()}")
+                    return ""
+                
+                audio_bytes = await resp.read()
+                return base64.b64encode(audio_bytes).decode('utf-8')
+    except Exception as e:
+        logger.exception(f"TTS error: {e}")
+        return ""
 
     except Exception as e:
         logger.exception(f"Chat error: {e}")

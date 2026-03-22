@@ -112,6 +112,16 @@
     // Use Web Speech API for TTS (free, no API needed)
     let voices = [];
     
+    function base64ToBlob(base64, mimeType) {
+      const byteCharacters = atob(base64);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      return new Blob([byteArray], { type: mimeType });
+    }
+    
     function loadVoices() {
       voices = speechSynthesis.getVoices();
     }
@@ -236,8 +246,17 @@
         
         response.textContent = data.text;
         status.textContent = 'Tap to chat again!';
-        console.log('Got response:', data.text);
-        speak(data.text);
+        
+        // Play MiniMax TTS audio if available
+        if (data.audio) {
+          const audioBlob = base64ToBlob(data.audio, 'audio/mp3');
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const audio = new Audio(audioUrl);
+          audio.play();
+        } else {
+          // Fallback to browser TTS
+          speak(data.text);
+        }
       } catch (e) {
         showError('Could not reach server. Try again!');
       }
