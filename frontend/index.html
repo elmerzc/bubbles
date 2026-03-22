@@ -249,10 +249,29 @@
         
         // Play MiniMax TTS audio if available
         if (data.audio) {
-          const audioBlob = base64ToBlob(data.audio, 'audio/mp3');
-          const audioUrl = URL.createObjectURL(audioBlob);
-          const audio = new Audio(audioUrl);
-          audio.play();
+          try {
+            const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
+            const audioUrl = URL.createObjectURL(audioBlob);
+            const audio = new Audio(audioUrl);
+            audio.volume = 1.0;
+            
+            // Wait for audio to be ready
+            audio.oncanplaythrough = () => {
+              console.log('Audio ready, playing...');
+              audio.play().catch(e => {
+                console.error('Audio play failed:', e);
+                speak(data.text); // fallback
+              });
+            };
+            
+            audio.onerror = (e) => {
+              console.error('Audio error:', e);
+              speak(data.text); // fallback
+            };
+          } catch (e) {
+            console.error('Audio creation failed:', e);
+            speak(data.text); // fallback
+          }
         } else {
           // Fallback to browser TTS
           speak(data.text);
