@@ -8,57 +8,201 @@
   <title>Bubbles</title>
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
-  <link rel="stylesheet" href="css/style.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    #chat-box {
+      background: white;
+      border-radius: 24px;
+      padding: 32px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      text-align: center;
+    }
+    h1 { color: #7c3aed; margin-bottom: 8px; }
+    #status { color: #666; margin-bottom: 24px; font-size: 14px; }
+    #response {
+      min-height: 80px;
+      background: #f3f4f6;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #333;
+      font-size: 18px;
+      line-height: 1.4;
+    }
+    #talk-btn {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #a78bfa, #7c3aed);
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+      box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4);
+      -webkit-tap-highlight-color: transparent;
+    }
+    #talk-btn:active, #talk-btn.listening {
+      transform: scale(0.95);
+      background: linear-gradient(135deg, #c4b5fd, #a78bfa);
+    }
+    #talk-btn.listening {
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4); }
+      50% { box-shadow: 0 8px 40px rgba(124, 58, 237, 0.7); }
+    }
+    #error {
+      color: #dc2626;
+      margin-top: 12px;
+      font-size: 14px;
+      display: none;
+    }
+  </style>
 </head>
 <body>
-  <div id="app">
-    <!-- PIN Screen -->
-    <div id="pin-screen" class="screen active">
-      <div class="pin-container">
-        <h1>Bubbles</h1>
-        <p>Enter PIN to start</p>
-        <div id="pin-dots">
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
-          <span class="dot"></span>
-        </div>
-        <div class="pin-pad">
-          <button class="pin-btn" data-digit="1">1</button>
-          <button class="pin-btn" data-digit="2">2</button>
-          <button class="pin-btn" data-digit="3">3</button>
-          <button class="pin-btn" data-digit="4">4</button>
-          <button class="pin-btn" data-digit="5">5</button>
-          <button class="pin-btn" data-digit="6">6</button>
-          <button class="pin-btn" data-digit="7">7</button>
-          <button class="pin-btn" data-digit="8">8</button>
-          <button class="pin-btn" data-digit="9">9</button>
-          <button class="pin-btn" data-digit="clear">C</button>
-          <button class="pin-btn" data-digit="0">0</button>
-          <button class="pin-btn" data-digit="enter">OK</button>
-        </div>
-        <p id="pin-status"></p>
-      </div>
-    </div>
-
-    <!-- Chat Screen -->
-    <div id="chat-screen" class="screen">
-      <div id="face-container">
-        <canvas id="face-canvas"></canvas>
-      </div>
-      <div id="caption-area">
-        <p id="caption-text">Connecting...</p>
-      </div>
-      <div id="controls">
-        <button id="talk-btn" disabled>
-          <span id="talk-btn-text">Hold to Talk</span>
-        </button>
-      </div>
-    </div>
+  <div id="chat-box">
+    <h1>🫧 Bubbles</h1>
+    <p id="status">Ready to chat!</p>
+    <div id="response">Hold the button and talk...</div>
+    <button id="talk-btn">Hold to Talk</button>
+    <p id="error"></p>
   </div>
 
-  <script src="https://unpkg.com/@daily-co/daily-js"></script>
-  <script src="js/face.js"></script>
-  <script src="js/app.js"></script>
+  <script>
+    const API_BASE = '';
+    const talkBtn = document.getElementById('talk-btn');
+    const status = document.getElementById('status');
+    const response = document.getElementById('response');
+    const errorEl = document.getElementById('error');
+
+    let isListening = false;
+    let mediaRecorder = null;
+    let audioChunks = [];
+
+    // Check mic permission on load
+    async function init() {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        status.textContent = 'Ready!';
+      } catch (e) {
+        showError('Please allow microphone access');
+      }
+    }
+    init();
+
+    // Use Web Speech API for TTS (free, no API needed)
+    function speak(text) {
+      if (!text) return;
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.rate = 1.1;
+      utt.pitch = 1.2;
+      // Try to find a friendly voice
+      const voices = speechSynthesis.getVoices();
+      const kidVoice = voices.find(v => v.name.includes('Samantha') || v.name.includes('Google US English'))
+                    || voices.find(v => v.lang.startsWith('en')) 
+                    || voices[0];
+      if (kidVoice) utt.voice = kidVoice;
+      speechSynthesis.speak(utt);
+    }
+
+    talkBtn.addEventListener('mousedown', startListening);
+    talkBtn.addEventListener('mouseup', stopListening);
+    talkBtn.addEventListener('mouseleave', stopListening);
+    talkBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startListening(); });
+    talkBtn.addEventListener('touchend', (e) => { e.preventDefault(); stopListening(); });
+    talkBtn.addEventListener('touchcancel', stopListening);
+
+    async function startListening() {
+      if (isListening) return;
+      errorEl.style.display = 'none';
+      
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunks = [];
+        const mimeType = MediaRecorder.isTypeSupported('audio/opus') ? 'audio/opus' : 'audio/webm';
+        mediaRecorder = new MediaRecorder(stream, { mimeType });
+        
+        mediaRecorder.ondataavailable = e => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+        
+        mediaRecorder.start();
+        isListening = true;
+        talkBtn.classList.add('listening');
+        talkBtn.textContent = 'Listening...';
+        status.textContent = 'Go ahead, I\'m listening!';
+        response.textContent = '';
+      } catch (e) {
+        showError('Could not access microphone');
+      }
+    }
+
+    async function stopListening() {
+      if (!isListening || !mediaRecorder) return;
+      isListening = false;
+      talkBtn.classList.remove('listening');
+      talkBtn.textContent = 'Hold to Talk';
+      status.textContent = 'Processing...';
+      mediaRecorder.stop();
+      mediaRecorder.stream.getTracks().forEach(t => t.stop());
+
+      // Wait for audio data
+      const audioBlob = await new Promise(r => mediaRecorder.onstop = r);
+      const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+
+      if (blob.size < 1000) {
+        status.textContent = 'Ready!';
+        response.textContent = 'Hmm, I didn\'t hear anything. Try again!';
+        return;
+      }
+
+      // Send to backend
+      const formData = new FormData();
+      formData.append('audio_file', blob, 'recording.webm');
+
+      try {
+        const res = await fetch(`${API_BASE}/api/chat`, { method: 'POST', body: formData });
+        const data = await res.json();
+        
+        if (data.error) {
+          showError(data.error);
+          return;
+        }
+        
+        response.textContent = data.text;
+        status.textContent = 'Tap to chat again!';
+        speak(data.text);
+      } catch (e) {
+        showError('Could not reach server. Try again!');
+      }
+    }
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.style.display = 'block';
+      status.textContent = 'Oops!';
+    }
+
+    // Preload voices
+    speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+  </script>
 </body>
 </html>

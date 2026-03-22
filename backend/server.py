@@ -1,6 +1,9 @@
+"""
+Bubbles - Simple push-to-talk chatbot for kids
+Receives audio → transcribes → LLM response → returns text (frontend uses Web Speech API for TTS)
+"""
 import asyncio
 import tempfile
-from datetime import datetime, timedelta
 from pathlib import Path
 
 import aiohttp
@@ -9,15 +12,10 @@ from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
-from pipecat.pipeline.runner import PipelineRunner
-from pipecat.pipeline.task import PipelineTask
 
 import config
 
 app = FastAPI()
-
-# Initialize Deepgram
-deepgram = Deepgram(config.DEEPGRAM_API_KEY)
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,113 +24,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DAILY_API_HEADERS = {
-    "Authorization": f"Bearer {config.DAILY_API_KEY}",
-    "Content-Type": "application/json",
-}
+# Initialize Deepgram
+deepgram = Deepgram(config.DEEPGRAM_API_KEY)
 
+BUBBLES_PROMPT = """You are Bubbles, a fun talking buddy for kids under 10. Be adaptive — silly with silly kids, gentle with quiet ones. Use simple words, short sentences, and kid-friendly humor.
 
-async def create_room() -> dict:
-    expiry = int((datetime.utcnow() + timedelta(minutes=config.SESSION_TIMEOUT_MINUTES + 5)).timestamp())
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{config.DAILY_API_URL}/rooms",
-            headers=DAILY_API_HEADERS,
-            json={
-                "privacy": "public",
-                "properties": {
-                    "exp": expiry,
-                    "enable_chat": False,
-                    "enable_screenshare": False,
-                    "max_participants": 2,
-                },
-            },
-        ) as resp:
-            if resp.status != 200:
-                text = await resp.text()
-                raise Exception(f"Failed to create room: {text}")
-            return await resp.json()
+You can chat, tell stories, help with homework, play quiz games, and answer "why" questions.
 
+RULES: Never discuss violence, adult topics, or scary things. Never use bad language. Never ask for personal info. Never pretend to be human. If asked something inappropriate, say "That's a great question for a grown-up! Want to play a game instead?" If a child seems upset, be kind and suggest they talk to a trusted adult.
 
-async def create_token(room_name: str, is_owner: bool = True) -> str:
-    expiry = int((datetime.utcnow() + timedelta(minutes=config.SESSION_TIMEOUT_MINUTES + 5)).timestamp())
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            f"{config.DAILY_API_URL}/meeting-tokens",
-            headers=DAILY_API_HEADERS,
-            json={
-                "properties": {
-                    "room_name": room_name,
-                    "exp": expiry,
-                    "is_owner": is_owner,
-                },
-            },
-        ) as resp:
-            if resp.status != 200:
-                text = await resp.text()
-                raise Exception(f"Failed to create token: {text}")
-            data = await resp.json()
-            return data["token"]
-
-
-@app.post("/api/start")
-async def start_session():
-    room = await create_room()
-    room_url = room["url"]
-    room_name = room["name"]
-
-    bot_token = await create_token(room_name, is_owner=True)
-    client_token = await create_token(room_name, is_owner=False)
-
-    # Bot joins room passively (no audio pipeline) - frontend sends audio via /api/chat instead
-    asyncio.create_task(run_bot_passive(room_url, bot_token))
-    logger.info(f"Session started: {room_name}")
-
-    return {
-        "room_url": room_url,
-        "token": client_token,
-    }
-
-
-@app.get("/api/health")
-async def health():
-    return {"status": "ok"}
-
-
-async def run_bot_passive(room_url: str, token: str):
-    """Join Daily room without audio pipeline - just keeps the room alive."""
-    from pipecat.transports.daily.transport import DailyTransport, DailyParams
-    
-    async with aiohttp.ClientSession() as session:
-        transport = DailyTransport(
-            room_url,
-            token,
-            "Bubbles",
-            DailyParams(
-                audio_in_enabled=False,  # No audio input - frontend uses /api/chat instead
-                audio_out_enabled=True,
-                transcription_enabled=False,
-            ),
-        )
-
-        @transport.event_handler("on_first_participant_joined")
-        async def on_first(transport, participant):
-            logger.info(f"Bot joined room: {participant}")
-
-        @transport.event_handler("on_participant_left")
-        async def on_left(transport, participant, reason):
-            logger.info(f"Participant left: {reason}")
-
-        runner = PipelineRunner()
-        task = PipelineTask([])
-        await runner.run(task)
+Keep responses to 1-3 sentences. Ask follow-up questions. Be encouraging and fun."""
 
 
 @app.post("/api/chat")
 async def chat(audio_file: UploadFile = File(...)):
-    """Receive audio on button release, transcribe, then get LLM response. Single API call."""
+    """Receive audio blob → transcribe → LLM → return text response."""
+    tmp_path = None
     try:
-        # Save uploaded audio to temp file
+        # Save uploaded audio
         with tempfile.NamedTemporaryFile(suffix=".webm", delete=False) as tmp:
             tmp.write(await audio_file.read())
             tmp_path = tmp.name
@@ -144,14 +53,13 @@ async def chat(audio_file: UploadFile = File(...)):
                 {"punctuate": True, "profanity_filter": True}
             )
         
-        # Extract transcript
         transcript = dg_response["results"]["channels"][0]["alternatives"][0]["transcript"]
+        logger.info(f"Heard: {transcript}")
+
         if not transcript.strip():
             return {"text": "Hmm, I didn't catch that! Can you say it again?"}
         
-        logger.info(f"Transcribed: {transcript}")
-
-        # Get LLM response (single call)
+        # Get LLM response
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 "https://api.minimax.io/v1/chat/completions",
@@ -162,7 +70,7 @@ async def chat(audio_file: UploadFile = File(...)):
                 json={
                     "model": "MiniMax-M2.5",
                     "messages": [
-                        {"role": "system", "content": "You are Bubbles, a fun talking buddy for kids under 10."},
+                        {"role": "system", "content": BUBBLES_PROMPT},
                         {"role": "user", "content": transcript}
                     ],
                     "max_tokens": 150,
@@ -172,22 +80,27 @@ async def chat(audio_file: UploadFile = File(...)):
             ) as resp:
                 if resp.status != 200:
                     error = await resp.text()
-                    logger.error(f"LLM error: {error}")
-                    return {"text": "Oops, something went wrong! Try again."}
+                    logger.error(f"MiniMax error: {error}")
+                    return {"error": "Oops, something went wrong on my end!"}
                 result = await resp.json()
                 reply = result["choices"][0]["message"]["content"]
         
-        logger.info(f"Bubbles says: {reply}")
+        logger.info(f"Bubbles: {reply}")
         return {"text": reply}
 
     except Exception as e:
         logger.exception(f"Chat error: {e}")
-        return {"text": "Oops, something went wrong! Try again."}
+        return {"error": "Oops, something went wrong! Try again."}
     finally:
-        # Cleanup temp file
-        Path(tmp_path).unlink(missing_ok=True)
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
 
 
-# Serve frontend static files (must be after API routes)
+@app.get("/api/health")
+async def health():
+    return {"status": "ok"}
+
+
+# Serve frontend
 frontend_dir = Path(__file__).parent.parent / "frontend"
 app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")

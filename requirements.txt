@@ -1,8 +1,6 @@
-pipecat-ai[daily,deepgram,openai,silero]
-deepgram>=1.0.0
-minimax
-aiohttp
 fastapi
 uvicorn[standard]
 python-dotenv
 loguru
+aiohttp
+deepgram>=1.0.0
