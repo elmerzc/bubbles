@@ -167,6 +167,7 @@ async def chat(audio_file: UploadFile = File(...)):
                     ],
                     "max_tokens": 150,
                     "temperature": 0.8,
+                    "group_id": config.MINIMAX_GROUP_ID,
                 },
             ) as resp:
                 if resp.status != 200:
