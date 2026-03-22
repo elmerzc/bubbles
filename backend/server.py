@@ -62,7 +62,7 @@ async def chat(audio_file: UploadFile = File(...)):
         # Get LLM response
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                "https://api.minimax.io/v1/chat/completions",
+                "https://api.minimax.io/v1/text/chatcompletion_v2",
                 headers={
                     "Authorization": f"Bearer {config.MINIMAX_API_KEY}",
                     "Content-Type": "application/json",
