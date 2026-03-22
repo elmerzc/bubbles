@@ -1,9 +1,11 @@
 import asyncio
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import aiohttp
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 import config
@@ -88,3 +90,8 @@ async def start_session():
 @app.get("/api/health")
 async def health():
     return {"status": "ok"}
+
+
+# Serve frontend static files (must be after API routes)
+frontend_dir = Path(__file__).parent.parent / "frontend"
+app.mount("/", StaticFiles(directory=str(frontend_dir), html=True), name="frontend")

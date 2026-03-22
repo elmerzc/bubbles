@@ -1,6 +1,4 @@
-const API_BASE = window.location.hostname === "localhost"
-  ? "http://localhost:8000"
-  : ""; // Same origin in production, or set your Railway URL
+const API_BASE = ""; // Same origin — backend serves frontend
 
 const DEFAULT_PIN = "1234";
 let storedPin = localStorage.getItem("bubbles_pin");
