@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Bubbles</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- PIN Screen -->
+    <div id="pin-screen" class="screen active">
+      <div class="pin-container">
+        <h1>Bubbles</h1>
+        <p>Enter PIN to start</p>
+        <div id="pin-dots">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+        <div class="pin-pad">
+          <button class="pin-btn" data-digit="1">1</button>
+          <button class="pin-btn" data-digit="2">2</button>
+          <button class="pin-btn" data-digit="3">3</button>
+          <button class="pin-btn" data-digit="4">4</button>
+          <button class="pin-btn" data-digit="5">5</button>
+          <button class="pin-btn" data-digit="6">6</button>
+          <button class="pin-btn" data-digit="7">7</button>
+          <button class="pin-btn" data-digit="8">8</button>
+          <button class="pin-btn" data-digit="9">9</button>
+          <button class="pin-btn" data-digit="clear">C</button>
+          <button class="pin-btn" data-digit="0">0</button>
+          <button class="pin-btn" data-digit="enter">OK</button>
+        </div>
+        <p id="pin-status"></p>
+      </div>
+    </div>
+
+    <!-- Chat Screen -->
+    <div id="chat-screen" class="screen">
+      <div id="face-container">
+        <canvas id="face-canvas"></canvas>
+      </div>
+      <div id="caption-area">
+        <p id="caption-text">Connecting...</p>
+      </div>
+      <div id="controls">
+        <button id="talk-btn" disabled>
+          <span id="talk-btn-text">Hold to Talk</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@daily-co/daily-js"></script>
+  <script src="js/face.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+pipecat-ai[daily,deepgram,anthropic,silero]
+minimax
+aiohttp
+fastapi
+uvicorn[standard]
+python-dotenv
+loguru
