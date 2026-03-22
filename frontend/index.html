@@ -110,17 +110,21 @@
     init();
 
     // Use Web Speech API for TTS (free, no API needed)
-    let voices = speechSynthesis.getVoices(); // Load immediately
+    let voices = [];
     
-    // Chrome may need this event to reload voices
-    speechSynthesis.onvoiceschanged = () => {
+    function loadVoices() {
       voices = speechSynthesis.getVoices();
-    };
+    }
+    
+    // Wait for voices to be available
+    speechSynthesis.onvoiceschanged = loadVoices;
+    loadVoices();
     
     function speak(text) {
       if (!text) return;
+      console.log('speak() called with:', text.substring(0, 50));
       try {
-        // Remove emojis and special chars that can break TTS
+        // Remove emojis and special chars
         text = text.replace(/[\u{1F600}-\u{1F6FF}]/gu, '').replace(/[*#🎉🐰🤖🦕]/g, '');
         text = text.trim();
         if (!text) return;
@@ -131,13 +135,19 @@
         utt.rate = 1.0;
         utt.pitch = 1.1;
         
-        // Use first available English voice
-        const enVoice = voices.find(v => v.lang && v.lang.startsWith('en')) || voices[0];
+        // Get current voices
+        const allVoices = speechSynthesis.getVoices();
+        console.log('Available voices:', allVoices.length);
+        const enVoice = allVoices.find(v => v.lang && v.lang.startsWith('en')) || allVoices[0];
         if (enVoice) {
           utt.voice = enVoice;
+          console.log('Using voice:', enVoice.name);
+        } else {
+          console.log('No voice found!');
         }
         
         speechSynthesis.speak(utt);
+        console.log('speechSynthesis.speak() called');
       } catch (e) {
         console.error('TTS error:', e);
       }
