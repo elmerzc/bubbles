@@ -8,7 +8,6 @@ from pathlib import Path
 
 import aiohttp
 from deepgram import DeepgramClient
-from deepgram.models import PrerecordedOptions
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -47,14 +46,14 @@ async def chat(audio_file: UploadFile = File(...)):
             tmp.write(await audio_file.read())
             tmp_path = tmp.name
 
-        # Transcribe with Deepgram v3
-        options = PrerecordedOptions(
-            model="nova-2",
-            punctuate=True,
-            profanity_filter=True,
-        )
+        # Transcribe with Deepgram v5
         with open(tmp_path, "rb") as f:
-            dg_response = deepgram.listen.prerecorded.v("1").transcribe_file(f, options)
+            dg_response = deepgram.listen.v1.media.transcribe_file(
+                request=f.read(),
+                model="nova-2",
+                punctuate=True,
+                profanity_filter=True,
+            )
         
         transcript = dg_response.results.channels[0].alternatives[0].transcript
         logger.info(f"Heard: {transcript}")
