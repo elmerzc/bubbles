@@ -75,7 +75,7 @@ async def chat(audio_file: UploadFile = File(...)):
                     "messages": [
                         {"role": "user", "content": f"{BUBBLES_PROMPT}\n\nChild: {transcript}"}
                     ],
-                    "max_tokens": 150,
+                    "max_tokens": 500,
                 },
             ) as resp:
                 if resp.status != 200:
@@ -84,8 +84,13 @@ async def chat(audio_file: UploadFile = File(...)):
                     return {"error": "Oops, something went wrong on my end!"}
                 result = await resp.json()
                 logger.info(f"MiniMax response: {result}")
-                # MiniMax Anthropic-compatible format: content is in "content" field
-                reply = result.get("content", [{"text": "Oops, something went wrong!"}])[0].get("text", "Oops!")
+                # MiniMax Anthropic-compatible: content has items with type "text" or "thinking"
+                content = result.get("content", [])
+                reply = "Oops, I didn't catch that!"
+                for item in content:
+                    if item.get("type") == "text":
+                        reply = item.get("text", reply)
+                        break
         
         logger.info(f"Bubbles: {reply}")
         return {"text": reply}
