@@ -253,24 +253,22 @@
             const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
             const audioUrl = URL.createObjectURL(audioBlob);
             const audio = new Audio(audioUrl);
+            audio.setAttribute('playsinline', '');  // Important for iOS
             audio.volume = 1.0;
             
-            // Wait for audio to be ready
-            audio.oncanplaythrough = () => {
-              console.log('Audio ready, playing...');
-              audio.play().catch(e => {
+            // Try to play immediately
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+              playPromise.then(() => {
+                console.log('Audio playing');
+              }).catch(e => {
                 console.error('Audio play failed:', e);
                 speak(data.text); // fallback
               });
-            };
-            
-            audio.onerror = (e) => {
-              console.error('Audio error:', e);
-              speak(data.text); // fallback
-            };
+            }
           } catch (e) {
-            console.error('Audio creation failed:', e);
-            speak(data.text); // fallback
+            console.error('Audio error:', e);
+            speak(data.text);
           }
         } else {
           // Fallback to browser TTS
