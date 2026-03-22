@@ -247,31 +247,25 @@
         response.textContent = data.text;
         status.textContent = 'Tap to chat again!';
         
-        // Play MiniMax TTS audio if available
-        if (data.audio) {
+        // On mobile, browser TTS works better than server audio
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        
+        if (isMobile) {
+          // Use browser TTS on mobile (it works from user interaction)
+          speak(data.text);
+        } else if (data.audio) {
+          // Use MiniMax TTS on desktop
           try {
             const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
             const audioUrl = URL.createObjectURL(audioBlob);
             const audio = new Audio(audioUrl);
-            audio.setAttribute('playsinline', '');  // Important for iOS
             audio.volume = 1.0;
-            
-            // Try to play immediately
-            const playPromise = audio.play();
-            if (playPromise !== undefined) {
-              playPromise.then(() => {
-                console.log('Audio playing');
-              }).catch(e => {
-                console.error('Audio play failed:', e);
-                speak(data.text); // fallback
-              });
-            }
+            audio.play();
           } catch (e) {
             console.error('Audio error:', e);
             speak(data.text);
           }
         } else {
-          // Fallback to browser TTS
           speak(data.text);
         }
       } catch (e) {
