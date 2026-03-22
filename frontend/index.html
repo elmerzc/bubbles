@@ -206,8 +206,7 @@
         
         response.textContent = data.text;
         status.textContent = 'Tap to chat again!';
-        // TTS disabled for testing
-        // speak(data.text);
+        speak(data.text);
       } catch (e) {
         showError('Could not reach server. Try again!');
       }
