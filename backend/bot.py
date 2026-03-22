@@ -1,11 +1,12 @@
 import asyncio
+import re
 import sys
 
 import aiohttp
 from loguru import logger
 
 from pipecat.audio.vad.silero import SileroVADAnalyzer
-from pipecat.frames.frames import LLMRunFrame
+from pipecat.frames.frames import LLMRunFrame, TextFrame
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
@@ -14,9 +15,38 @@ from pipecat.processors.aggregators.llm_response_universal import (
     LLMContextAggregatorPair,
     LLMUserAggregatorParams,
 )
+from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.minimax.tts import MiniMaxHttpTTSService
 from pipecat.transports.daily.transport import DailyParams, DailyTransport
+
+
+class ThinkingFilter(FrameProcessor):
+    """Strips <think>...</think> blocks from LLM text output."""
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._in_think = False
+
+    async def process_frame(self, frame, direction: FrameDirection):
+        if isinstance(frame, TextFrame):
+            text = frame.text
+            # Strip complete <think>...</think> blocks
+            text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+            # Handle streaming: drop partial <think> open tags
+            if "<think>" in text:
+                self._in_think = True
+                text = text[:text.index("<think>")]
+            if self._in_think:
+                if "</think>" in text:
+                    text = text[text.index("</think>") + len("</think>"):]
+                    self._in_think = False
+                else:
+                    text = ""
+            if text.strip():
+                await self.push_frame(TextFrame(text=text), direction)
+        else:
+            await self.push_frame(frame, direction)
 
 import config
 from prompts import BUBBLES_GREETING, BUBBLES_SYSTEM_PROMPT
@@ -75,11 +105,14 @@ async def run_bot(room_url: str, token: str):
             ),
         )
 
+        thinking_filter = ThinkingFilter()
+
         pipeline = Pipeline(
             [
                 transport.input(),
                 user_aggregator,
                 llm,
+                thinking_filter,
                 tts,
                 transport.output(),
                 assistant_aggregator,
