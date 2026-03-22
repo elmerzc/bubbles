@@ -107,7 +107,7 @@ async def generate_tts(text: str) -> str:
                     "stream": False,
                     "output_format": "mp3",
                     "voice_setting": {
-                        "voice_id": "male-qn-qingse",
+                        "voice_id": "English_expressive_narrator",
                         "speed": 1.0,
                         "vol": 1.0,
                         "pitch": 0,
@@ -123,7 +123,15 @@ async def generate_tts(text: str) -> str:
                     logger.error(f"TTS error: {await resp.text()}")
                     return ""
                 
-                audio_bytes = await resp.read()
+                result = await resp.json()
+                # Response is JSON with hex-encoded audio in data.audio
+                audio_hex = result.get("data", {}).get("audio", "")
+                if not audio_hex:
+                    logger.error(f"TTS error: no audio in response")
+                    return ""
+                
+                # Convert hex to bytes then to base64
+                audio_bytes = bytes.fromhex(audio_hex)
                 return base64.b64encode(audio_bytes).decode('utf-8')
     except Exception as e:
         logger.exception(f"TTS error: {e}")
