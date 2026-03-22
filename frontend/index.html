@@ -109,33 +109,42 @@
     init();
 
     // Use Web Speech API for TTS (free, no API needed)
-    let voicesLoaded = false;
-    
-    speechSynthesis.onvoiceschanged = () => {
-      voicesLoaded = true;
-    };
-    
     function speak(text) {
       if (!text) return;
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.rate = 1.1;
-      utt.pitch = 1.2;
-      // Wait for voices to load if needed
-      const trySpeak = () => {
+      try {
+        // Cancel any ongoing speech
+        speechSynthesis.cancel();
+        
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.rate = 1.0;
+        utt.pitch = 1.1;
+        
+        // Get voices
         const voices = speechSynthesis.getVoices();
-        const kidVoice = voices.find(v => v.name.includes('Samantha') || v.name.includes('Google US English'))
-                      || voices.find(v => v.lang.startsWith('en')) 
-                      || voices[0];
-        if (kidVoice) utt.voice = kidVoice;
+        console.log('Available voices:', voices.map(v => v.name));
+        
+        // Pick a good voice - prefer female English voices
+        const preferredVoice = voices.find(v => 
+          (v.name.includes('Samantha') || v.name.includes('Victoria') || 
+           v.name.includes('Karen') || v.name.includes('Moira') ||
+           v.name.includes('Google') && v.name.includes('English'))
+          && v.lang.startsWith('en')
+        ) || voices.find(v => v.lang.startsWith('en')) || voices[0];
+        
+        if (preferredVoice) {
+          utt.voice = preferredVoice;
+          console.log('Using voice:', preferredVoice.name);
+        }
+        
         speechSynthesis.speak(utt);
-      };
-      if (voicesLoaded || speechSynthesis.getVoices().length > 0) {
-        trySpeak();
-      } else {
-        // Wait a bit for voices to load
-        setTimeout(trySpeak, 100);
+        console.log('Speaking:', text.substring(0, 50));
+      } catch (e) {
+        console.error('TTS error:', e);
       }
     }
+    
+    // Load voices immediately
+    speechSynthesis.getVoices();
 
     talkBtn.addEventListener('mousedown', startListening);
     talkBtn.addEventListener('mouseup', stopListening);
