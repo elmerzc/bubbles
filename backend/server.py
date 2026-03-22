@@ -59,23 +59,21 @@ async def chat(audio_file: UploadFile = File(...)):
         if not transcript.strip():
             return {"text": "Hmm, I didn't catch that! Can you say it again?"}
         
-        # Get LLM response
+        # Get LLM response via MiniMax Anthropic-compatible API
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                "https://api.minimax.io/v1/text/chatcompletion_v2",
+                "https://api.minimax.io/anthropic/v1/messages",
                 headers={
                     "Authorization": f"Bearer {config.MINIMAX_API_KEY}",
                     "Content-Type": "application/json",
+                    "anthropic-version": "2023-06-01",
                 },
                 json={
                     "model": "MiniMax-M2.5",
                     "messages": [
-                        {"role": "system", "content": BUBBLES_PROMPT},
-                        {"role": "user", "content": transcript}
+                        {"role": "user", "content": f"{BUBBLES_PROMPT}\n\nChild: {transcript}"}
                     ],
                     "max_tokens": 150,
-                    "temperature": 0.8,
-                    "group_id": config.MINIMAX_GROUP_ID,
                 },
             ) as resp:
                 if resp.status != 200:
