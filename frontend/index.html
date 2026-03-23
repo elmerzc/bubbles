@@ -276,16 +276,8 @@
         document.cookie = `session_id=${data.session_id}; path=/; max-age=31536000`;
       }
       
-      // Play audio - handle iOS specially
-      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-      
-      if (isIOS) {
-        // iOS: use speechSynthesis directly (it works from button gesture)
-        speak(data.text);
-      } else {
-        // Android/Desktop: use MiniMax audio
-        playAudio(data);
-      }
+      // Play audio - always use MiniMax TTS
+      playAudio(data);
     }
 
     function showError(msg) {
