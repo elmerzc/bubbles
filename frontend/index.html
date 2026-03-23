@@ -112,6 +112,9 @@
     // Use Web Speech API for TTS (free, no API needed)
     let voices = [];
     
+    // Pre-created audio element that lives across interactions
+    let botAudio = null;
+    
     function base64ToBlob(base64, mimeType) {
       const byteCharacters = atob(base64);
       const byteNumbers = new Array(byteCharacters.length);
@@ -120,6 +123,33 @@
       }
       const byteArray = new Uint8Array(byteNumbers);
       return new Blob([byteArray], { type: mimeType });
+    }
+    
+    function playAudio(data) {
+      if (!data.audio) {
+        speak(data.text);
+        return;
+      }
+      try {
+        const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        // Create new audio element and play immediately
+        const audio = new Audio(audioUrl);
+        audio.volume = 1.0;
+        
+        // Play and handle errors
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(err => {
+            console.error('Play failed:', err);
+            speak(data.text);
+          });
+        }
+      } catch (e) {
+        console.error('Audio error:', e);
+        speak(data.text);
+      }
     }
     
     function loadVoices() {
@@ -245,23 +275,7 @@
       }
       
       // Play audio
-      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-      
-      if (!isMobile && data.audio) {
-        // Desktop: use MiniMax TTS
-        try {
-          const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
-          const audioUrl = URL.createObjectURL(audioBlob);
-          const audio = new Audio(audioUrl);
-          audio.volume = 1.0;
-          audio.play().catch(() => speak(data.text));
-        } catch (e) {
-          speak(data.text);
-        }
-      } else {
-        // Mobile: browser TTS
-        speak(data.text);
-      }
+      playAudio(data);
     }
 
     function showError(msg) {
