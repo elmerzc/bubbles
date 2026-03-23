@@ -103,12 +103,12 @@ async def generate_tts(text: str) -> str:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "speech-02-hd",
+                    "model": "speech-2.8-hd",
                     "text": text,
                     "stream": False,
                     "output_format": "hex",
                     "voice_setting": {
-                        "voice_id": "male-qn-qingse",
+                        "voice_id": "English_expressive_narrator",
                         "speed": 1.0,
                         "vol": 1.0,
                         "pitch": 0,
