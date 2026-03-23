@@ -218,47 +218,49 @@
       const formData = new FormData();
       formData.append('audio_file', blob, 'recording.webm');
 
+      let data;
       try {
         const res = await fetch(`${API_BASE}/api/chat`, { 
           method: 'POST', 
           body: formData,
           credentials: 'include'
         });
-        const data = await res.json();
-        
-        if (data.error) {
-          showError(data.error);
-          return;
-        }
-        
-        response.textContent = data.text;
-        status.textContent = 'Tap to chat again!';
-        
-        // Update session_id cookie if we got a new one
-        if (data.session_id) {
-          document.cookie = `session_id=${data.session_id}; path=/; max-age=31536000`;
-        }
-        
-        // Play audio - use MiniMax on desktop, browser TTS on mobile
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        
-        if (!isMobile && data.audio) {
-          // Desktop: use MiniMax TTS (it works!)
-          try {
-            const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
-            const audioUrl = URL.createObjectURL(audioBlob);
-            const audio = new Audio(audioUrl);
-            audio.volume = 1.0;
-            audio.play().catch(() => speak(data.text));
-          } catch (e) {
-            speak(data.text);
-          }
-        } else {
-          // Mobile: use browser TTS (it works for Test Voice button)
-          speak(data.text);
-        }
+        data = await res.json();
       } catch (e) {
         showError('Could not reach server. Try again!');
+        return;
+      }
+      
+      if (data.error) {
+        showError(data.error);
+        return;
+      }
+      
+      response.textContent = data.text;
+      status.textContent = 'Tap to chat again!';
+      
+      // Update session_id cookie if we got a new one
+      if (data.session_id) {
+        document.cookie = `session_id=${data.session_id}; path=/; max-age=31536000`;
+      }
+      
+      // Play audio
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      
+      if (!isMobile && data.audio) {
+        // Desktop: use MiniMax TTS
+        try {
+          const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const audio = new Audio(audioUrl);
+          audio.volume = 1.0;
+          audio.play().catch(() => speak(data.text));
+        } catch (e) {
+          speak(data.text);
+        }
+      } else {
+        // Mobile: browser TTS
+        speak(data.text);
       }
     }
 
