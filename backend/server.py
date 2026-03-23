@@ -99,7 +99,7 @@ async def generate_tts(text: str) -> str:
             async with session.post(
                 "https://api.minimax.io/v1/t2a_v2",
                 headers={
-                    "Authorization": f"Bearer {config.MINIMAX_API_KEY}",
+                    "Authorization": f"Bearer {config.MINIMAX_TTS_API_KEY}",
                     "Content-Type": "application/json",
                 },
                 json={
