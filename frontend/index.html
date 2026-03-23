@@ -122,6 +122,10 @@
       return new Blob([byteArray], { type: mimeType });
     }
     
+    // Persistent audio element for mobile playback
+    const persistentAudio = new Audio();
+    persistentAudio.volume = 1.0;
+    
     function loadVoices() {
       voices = speechSynthesis.getVoices();
     }
@@ -247,12 +251,20 @@
         response.textContent = data.text;
         status.textContent = 'Tap to chat again!';
         
-        // On mobile, browser TTS works better than server audio
+        // On mobile, use persistent audio element which works better
         const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         
-        if (isMobile) {
-          // Use browser TTS on mobile (it works from user interaction)
-          speak(data.text);
+        if (isMobile && data.audio) {
+          // Use MiniMax audio on mobile via persistent audio element
+          try {
+            const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
+            const audioUrl = URL.createObjectURL(audioBlob);
+            persistentAudio.src = audioUrl;
+            persistentAudio.play();
+          } catch (e) {
+            console.error('Mobile audio error:', e);
+            speak(data.text);
+          }
         } else if (data.audio) {
           // Use MiniMax TTS on desktop
           try {
