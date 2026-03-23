@@ -112,8 +112,9 @@
     // Use Web Speech API for TTS (free, no API needed)
     let voices = [];
     
-    // Pre-created audio element that lives across interactions
-    let botAudio = null;
+    // Pre-created audio element that lives across interactions (needed for iOS)
+    let botAudio = new Audio();
+    botAudio.volume = 1.0;
     
     function base64ToBlob(base64, mimeType) {
       const byteCharacters = atob(base64);
@@ -134,14 +135,15 @@
         const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
         const audioUrl = URL.createObjectURL(audioBlob);
         
-        // Create new audio element and play immediately
-        const audio = new Audio(audioUrl);
-        audio.volume = 1.0;
+        // iOS requires setting src before play(), not after
+        botAudio.src = audioUrl;
+        botAudio.setAttribute('playsinline', '');
         
-        // Play and handle errors
-        const playPromise = audio.play();
+        const playPromise = botAudio.play();
         if (playPromise !== undefined) {
-          playPromise.catch(err => {
+          playPromise.then(() => {
+            console.log('Playing');
+          }).catch(err => {
             console.error('Play failed:', err);
             speak(data.text);
           });
@@ -274,8 +276,16 @@
         document.cookie = `session_id=${data.session_id}; path=/; max-age=31536000`;
       }
       
-      // Play audio
-      playAudio(data);
+      // Play audio - handle iOS specially
+      const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+      
+      if (isIOS) {
+        // iOS: use speechSynthesis directly (it works from button gesture)
+        speak(data.text);
+      } else {
+        // Android/Desktop: use MiniMax audio
+        playAudio(data);
+      }
     }
 
     function showError(msg) {
