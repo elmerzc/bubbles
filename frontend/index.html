@@ -122,10 +122,6 @@
       return new Blob([byteArray], { type: mimeType });
     }
     
-    // Persistent audio element for mobile playback
-    const persistentAudio = new Audio();
-    persistentAudio.volume = 1.0;
-    
     function loadVoices() {
       voices = speechSynthesis.getVoices();
     }
@@ -226,7 +222,7 @@
         const res = await fetch(`${API_BASE}/api/chat`, { 
           method: 'POST', 
           body: formData,
-          credentials: 'include'  // Send cookies (session_id)
+          credentials: 'include'
         });
         const data = await res.json();
         
@@ -243,41 +239,22 @@
           document.cookie = `session_id=${data.session_id}; path=/; max-age=31536000`;
         }
         
-        if (data.error) {
-          showError(data.error);
-          return;
-        }
-        
-        response.textContent = data.text;
-        status.textContent = 'Tap to chat again!';
-        
-        // On mobile, use persistent audio element which works better
+        // Play audio - use MiniMax on desktop, browser TTS on mobile
         const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
         
-        if (isMobile && data.audio) {
-          // Use MiniMax audio on mobile via persistent audio element
-          try {
-            const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
-            const audioUrl = URL.createObjectURL(audioBlob);
-            persistentAudio.src = audioUrl;
-            persistentAudio.play();
-          } catch (e) {
-            console.error('Mobile audio error:', e);
-            speak(data.text);
-          }
-        } else if (data.audio) {
-          // Use MiniMax TTS on desktop
+        if (!isMobile && data.audio) {
+          // Desktop: use MiniMax TTS (it works!)
           try {
             const audioBlob = base64ToBlob(data.audio, 'audio/mpeg');
             const audioUrl = URL.createObjectURL(audioBlob);
             const audio = new Audio(audioUrl);
             audio.volume = 1.0;
-            audio.play();
+            audio.play().catch(() => speak(data.text));
           } catch (e) {
-            console.error('Audio error:', e);
             speak(data.text);
           }
         } else {
+          // Mobile: use browser TTS (it works for Test Voice button)
           speak(data.text);
         }
       } catch (e) {
