@@ -107,7 +107,7 @@ async def generate_tts(text: str) -> str:
                     "output_format": "hex",
                     "group_id": config.MINIMAX_GROUP_ID,
                     "voice_setting": {
-                        "voice_id": "English_expressive_narrator",
+                        "voice_id": "English_radiant_girl",
                         "speed": 1.0,
                         "vol": 1.0,
                         "pitch": 0,
